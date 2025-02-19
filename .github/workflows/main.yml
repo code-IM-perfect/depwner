@@ -1,4 +1,4 @@
-            - name: Electron Forge Builder
+ - name: Electron Forge Builder
   # You may pin to the exact commit or the version.
   # uses: juaneth/electron-forge-builder@2690aca1a04f49e66639931227b532b49a29a91c
   uses: juaneth/electron-forge-builder@v1
