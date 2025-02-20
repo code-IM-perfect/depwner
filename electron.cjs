@@ -12,6 +12,76 @@ let win;
 
 let watcher = null;
 
+<<<<<<< Updated upstream
+=======
+function scheduleScanning() {
+    console.log('scanner callled');
+    if (!settings.schedule || !settings.schedule.active) {
+        console.log("Scheduling is disabled.");
+        return;
+    }
+    
+    console.log("Setting up scanning schedule...");
+
+    cron.getTasks().forEach(task => task.stop());
+
+    const { freq, time, days } = settings.schedule;
+
+    function getCurrentTimeIn24HFormat() {
+        const now = new Date();
+        const userTime = now.toLocaleTimeString('en-GB', { hour12: false }); // Get 24H format
+        return userTime.slice(0, 5); // Extract HH:MM
+    }
+
+    if (freq === "hourly") {
+        cron.schedule("0 * * * *", () => {
+            console.log("Running hourly scan...");
+            if (settings.locations.length > 0) {
+                settings.locations.forEach(location => startManualScan(location, "custom"));
+            } else {
+                console.warn("No locations set for scanning.");
+            }
+        });
+    } else if (freq === "daily") {
+        const [hour, minute] = time.split(":").map(Number);
+        cron.schedule(`${minute} ${hour} * * *`, () => {
+            const currentTime = getCurrentTimeIn24HFormat();
+            console.log(`Running daily scan at ${currentTime}...`);
+            if (settings.locations.length > 0) {
+                settings.locations.forEach(location => startManualScan(location, "custom"));
+            } else {
+                console.warn("No locations set for scanning.");
+            }
+        });
+    } else if (freq === "weekly") {
+        const [hour, minute] = time.split(":").map(Number);
+        const dayMap = {
+            sun: 0,
+            mon: 1,
+            tue: 2,
+            wed: 3,
+            thu: 4,
+            fri: 5,
+            sat: 6
+        };
+
+        Object.entries(days).forEach(([day, active]) => {
+            if (active) {
+                cron.schedule(`${minute} ${hour} * * ${dayMap[day]}`, () => {
+                    const currentTime = getCurrentTimeIn24HFormat();
+                    console.log(`Running weekly scan on ${day} at ${currentTime}...`);
+                    if (settings.locations.length > 0) {
+                        settings.locations.forEach(location => startManualScan(location, "custom"));
+                    } else {
+                        console.warn("No locations set for scanning.");
+                    }
+                });
+            }
+        });
+    }
+}
+
+>>>>>>> Stashed changes
 const startManualScan = async (pathToScan, type) => {
     console.log("Starting manual scan:", pathToScan, type);
 
@@ -100,22 +170,50 @@ function startWatcher() {
 }
 
 
+<<<<<<< Updated upstream
 var settings = require("./data/settings.json")
+=======
+// var settings = require(path.join(dataDir, './settings.json'))
+>>>>>>> Stashed changes
 
 const setSettings = async (_, setting) => {
+    // console.log("-----------------------------------------------------");
+    // console.log(settings);
+    // console.log("-----------------------------------------------------");
     try {
         console.log("Settings Written");
+        const fd = fs.openSync(settingsPath, 'r+');
+        const oldSettings = JSON.parse(fs.readFileSync(fd, 'utf8'));
+        fs.closeSync(fd);
+        console.log("Old Settings:")
+        console.log(oldSettings);
+        console.log(settingsPath);
+        console.log(JSON.parse(fs.readFileSync(settingsPath, 'utf8'))); 
+        console.log(setting);
         fs.writeFileSync(settingsPath, setting);
-        settings = JSON.parse(setting);
-        startWatcher();
-        scheduleScanning()
+        const newSettings = JSON.parse(setting);
+        settings = newSettings;  
+        if (JSON.stringify(newSettings.locations) !== JSON.stringify(oldSettings.locations)) {
+            startWatcher();
+        }
+        if (JSON.stringify(newSettings.schedule) !== JSON.stringify(oldSettings.schedule)) {
+            scheduleScanning();
+        }        
+        console.log("------------");
+        console.log(oldSettings);
+        console.log(newSettings);
+        console.log("------------");
     } catch (err) {
         console.error("Error writing settings:", err);
     }
 }
 const getSettings = async () => {
-    let settingsObject = fs.readFileSync(settingsPath, 'utf-8')
+    const fd = fs.openSync(settingsPath, 'r+');
+    const settingsObject = fs.readFileSync(fd, 'utf8');
+    fs.closeSync(fd);
     console.log("Settings Fetched")
+    console.log(JSON.parse(settingsObject));
+    console.log(settings);
     return settingsObject
 }
 

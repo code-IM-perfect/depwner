@@ -45,6 +45,7 @@
 
 		let settingsResponse = await depwnerPreferences.get();
 		settings = JSON.parse(settingsResponse);
+		console.log(settingsResponse);
 	});
 
 	let interval = $state(15000);

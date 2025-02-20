@@ -83,28 +83,12 @@
 	};
 
 	// let settings = $state();
-	let settings = $state({
-		yara: true,
-		schedule: {
-			active: true,
-			freq: 'weekly',
-			days: {
-				sun: true,
-				mon: false,
-				tue: false,
-				wed: false,
-				thu: false,
-				fri: false,
-				sat: false
-			},
-			time: '13:00'
-		},
-		locations: []
-	});
+	let settings;
 	let threats = $state(0);
 	onMount(async () => {
 		const settingsResponse = await depwnerPreferences.get();
 		settings = JSON.parse(settingsResponse);
+		console.log(settingsResponse)
 		const threatResponse = await depwnerStatus.getThreats();
 		const threatArr = JSON.parse(threatResponse);
 		threats = threatArr.length;
