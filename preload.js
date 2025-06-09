@@ -7,9 +7,16 @@ contextBridge.exposeInMainWorld("depwnerStatus", {
     getScanStatus: () => ipcRenderer.invoke("getScanStatus"),
 })
 
+// Consolidate electronAPI
+contextBridge.exposeInMainWorld("electronAPI", {
+    updateDefinitions: () => ipcRenderer.invoke('updateDefinitions'),
+    // Remove redundant IPC handlers that are already in depwnerPreferences
+});
+
 contextBridge.exposeInMainWorld("depwnerPreferences", {
     get: () => ipcRenderer.invoke("getSettings"),
     set: (newSettings) => ipcRenderer.send("setSettings", newSettings),
+    onUpdateProgress: (callback) => ipcRenderer.on('updateProgress', (_event, progress) => callback(progress)),
 })
 
 contextBridge.exposeInMainWorld("electronFilesystem", {

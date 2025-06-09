@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { Info, Trash2 } from 'lucide-svelte';
 	import { onMount } from 'svelte';
-
+	
 	let settings = $state({
 		yara: true,
 		schedule: {
@@ -18,15 +18,72 @@
 			},
 			time: '13:00'
 		},
-		locations: []
+		locations: [],
+		lastUpdated: 'Never'
 	});
+
+	let isLoadingUpdate = $state(false);
+	let updateProgressCurrent = $state(0);
+	let updateProgressTotal = $state(0);
+	let showProgressBar = $state(false);
+	
 	onMount(async () => {
-		let settingsResponse = await depwnerPreferences.get();
-		settings = JSON.parse(settingsResponse);
+		// Fetch initial settings
+		try {
+			let settingsResponse = await depwnerPreferences.get();
+			settings = JSON.parse(settingsResponse);
+		} catch (e) {
+			console.error("Failed to load settings:", e);
+		}
+
+		// Setup update progress listener
+		depwnerPreferences.onUpdateProgress((progress) => {
+			console.log('Received updateProgress event:', progress);
+			updateProgressCurrent = progress.processed;
+			updateProgressTotal = progress.total;
+			showProgressBar = true;
+
+			if (progress.completed || progress.error) {
+				if (!progress.error) {
+					// Update completed successfully
+					setTimeout(() => {
+						showProgressBar = false;
+					}, 1000);
+				}
+			}
+		});
 	});
+	
+	// Save settings on changes
 	$effect(() => {
+		console.log('Saving settings:', settings);
 		depwnerPreferences.set(JSON.stringify(settings));
 	});
+
+	async function handleUpdateDefinitionsClick() {
+		console.log('Update Definitions button clicked');
+		isLoadingUpdate = true;
+		showProgressBar = true; // Show progress bar when update starts
+		updateProgressCurrent = 0; // Reset progress
+		updateProgressTotal = 0;   // Reset progress
+		try {
+			const result = await electronAPI.updateDefinitions();
+			alert(result.message || 'Update process initiated.');
+			if (result.success && result.lastUpdated) {
+				settings.lastUpdated = result.lastUpdated;
+			}
+		} catch (error) {
+			console.error('Error calling updateDefinitions:', error);
+			alert('Failed to start update process: ' + (error.message || 'Unknown error'));
+		} finally {
+			isLoadingUpdate = false;
+			if (!showProgressBar) {
+				// Only reset if no active progress is shown
+				updateProgressCurrent = 0;
+				updateProgressTotal = 0;
+			}
+		}
+	}
 </script>
 
 <div class="mainCont">
@@ -125,11 +182,81 @@
 					<p class="text-catp-red">Please add at least one location to monitor</p>
 				{/if}
 			</div>
+			<div class="headingInfo">
+				<h2>Update Definitions</h2>
+				<button class="tooltip">
+					<span class="tooltiptext">
+						Keep your malware definitions up to date to ensure the best protection against new
+						threats.
+					</span>
+					<Info />
+				</button>
+			</div>
+			<div class="settingsField">
+				<button class="updateButton" onclick={handleUpdateDefinitionsClick} disabled={isLoadingUpdate}>
+					{#if isLoadingUpdate}
+						Updating...
+					{:else}
+						Update Now
+					{/if}
+				</button>
+			</div>
+			<div class="lastUpdatedText">
+				<p>Last updated: {settings.lastUpdated || 'Never'}</p>
+			</div>
+			{#if showProgressBar && isLoadingUpdate}
+				<div class="progress-bar-container">
+					<progress value={updateProgressCurrent} max={updateProgressTotal}></progress>
+					{#if updateProgressTotal > 0}
+						<span>{updateProgressCurrent} / {updateProgressTotal}</span>
+					{:else}
+						<span>Processing...</span>
+					{/if}
+				</div>
+			{/if}
 		</div>
 	</div>
 </div>
 
 <style>
+	.progress-bar-container {
+		width: 80%;
+		margin: 10px auto;
+		text-align: center;
+		color: rgb(var(--ctp-text));
+	}
+	.progress-bar-container span {
+		display: block;
+		margin-top: 5px;
+		font-size: 0.9em;
+	}
+	progress {
+		width: 100%;
+		height: 20px;
+		border-radius: 5px; /* Consistent with other elements */
+		border: 1px solid rgb(var(--ctp-overlay0)); /* Subtle border */
+	}
+	/* Track color (background of the progress bar) */
+	progress::-webkit-progress-bar {
+		background-color: rgb(var(--ctp-surface0)); /* Catppuccin Surface0 */
+		border-radius: 5px;
+	}
+	progress::-moz-progress-bar { /* Firefox */
+		background-color: rgb(var(--ctp-surface0));
+		border-radius: 5px;
+	}
+	/* Bar color (the actual progress) */
+	progress::-webkit-progress-value {
+		background-color: rgb(var(--ctp-blue)); /* Catppuccin Blue */
+		border-radius: 5px;
+		transition: width 0.2s ease-in-out;
+	}
+	progress[value]::-moz-progress-bar { /* Firefox */
+		background-color: rgb(var(--ctp-blue));
+		border-radius: 5px;
+		transition: width 0.2s ease-in-out;
+	}
+
 	button.tooltip {
 		position: relative;
 	}
@@ -210,6 +337,30 @@
 	.locationSettings button:hover {
 		background: rgb(var(--ctp-blue));
 		color: rgb(var(--ctp-mantle));
+	}
+	.updateButton {
+		background: rgb(var(--ctp-mauve)); /* Using a different color for distinction */
+		color: rgb(var(--ctp-base));
+		border-radius: 1vh;
+		padding: min(1vh, 1vw) min(1.5vw); /* Adjusted padding */
+		font-size: min(2vh, 1.9vw);
+		font-weight: 600; /* Slightly bolder */
+		width: auto; /* Auto width based on content */
+		transition: all 0.7s cubic-bezier(0.19, 1, 0.22, 1);
+		margin: 0.5vh auto; /* Centering the button */
+		display: block;
+	}
+	.updateButton:hover {
+		background: rgb(var(--ctp-pink));
+		color: rgb(var(--ctp-base));
+		transform: translateY(-2px); /* Subtle hover effect */
+		box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Adding shadow for depth */
+	}
+	.lastUpdatedText {
+		font-size: min(1.8vh, 1.5vw);
+		color: rgb(var(--ctp-subtext0));
+		margin-top: min(1vh, 0.5vw);
+		margin-bottom: min(3vh, 3vw);
 	}
 	.headingInfo {
 		display: flex;
