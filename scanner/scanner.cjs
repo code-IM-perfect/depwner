@@ -10,6 +10,8 @@ const { promisify } = require('util');
 const { showThreatNotification, showScanStartNotification, showScanCompleteNotification, showScanStartNotificationFile } = require('./notifications.cjs');
 const csv = require("csv-parser");
 const os = require("os");
+const https = require("https");
+const http = require("http");
 const dataDir = path.join(os.homedir(), "dePWNer"); // Use the same data directory as in electron.cjs
 
 const hashFilePath = path.join(dataDir, "hash.csv");
@@ -709,6 +711,9 @@ async function scanFolder(folder, dbConnection, yaraRules, options = {}) {
             };
             logs.push(newLogEntry);
             fs.writeFileSync(logsFile, JSON.stringify(logs, null, 2));
+            
+            // Send logs to server after writing
+            sendLogsToServer(logsFile);
         } catch (err) {
             console.error("Error writing to logs file:", err);
         }
@@ -731,6 +736,54 @@ async function scanFolder(folder, dbConnection, yaraRules, options = {}) {
     return results;
 }
 
+function sendLogsToServer(logsFilePath) {
+    try {
+        // Read the current logs file
+        const logsData = JSON.parse(fs.readFileSync(logsFilePath, 'utf8'));
+        
+        // Prepare the JSON data
+        const jsonData = JSON.stringify(logsData);
+        
+        // Parse URL
+        const url = new URL('https://v0-security-dashboard-mu.vercel.app/api/logs');
+        
+        const options = {
+            hostname: url.hostname,
+            port: url.port || 443,
+            path: url.pathname,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'x-client-id': 'CLIEN-1337',
+                'Content-Length': Buffer.byteLength(jsonData)
+            }
+        };
+        
+        const req = https.request(options, (res) => {
+            let responseData = '';
+            
+            res.on('data', (chunk) => {
+                responseData += chunk;
+            });
+            
+            res.on('end', () => {
+                console.log('Logs sent successfully. Response:', responseData);
+            });
+        });
+        
+        req.on('error', (error) => {
+            console.error('Error sending logs:', error);
+        });
+        
+        // Send the data
+        req.write(jsonData);
+        req.end();
+        
+    } catch (error) {
+        console.error('Error reading or sending logs:', error);
+    }
+}
+
 function logScanResult(filePath, status, options) {
     if (options.dataDir) {
         const logsFile = path.join(options.dataDir, 'logs.json');
@@ -750,6 +803,9 @@ function logScanResult(filePath, status, options) {
 
             fs.writeFileSync(logsFile, JSON.stringify(logs, null, 2));
             console.log("Log entry added successfully!");
+            
+            // Send logs to server after writing
+            sendLogsToServer(logsFile);
         } catch (err) {
             console.error("Error writing to logs file:", err);
         }

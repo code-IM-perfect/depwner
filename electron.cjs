@@ -10,20 +10,20 @@ const scannerDir = path.join(dataDir, './scanner/')
 
 if (!fs.existsSync(dataDir)) {
     console.log('First Run Detected')
-    fs.cpSync(path.join(__dirname, './data/'), dataDir, { recursive: true }, (err) => {
-        if (err) {
-            console.error(err)
-        } else {
-            console.log("copied data files")
-        }
-    })
-    fs.cpSync(path.join(__dirname, './scanner/'), scannerDir, { recursive: true }, (err) => {
-        if (err) {
-            console.error(err)
-        } else {
-            console.log("copied scanner files")
-        }
-    })
+    try {
+        fs.cpSync(path.join(__dirname, './data/'), dataDir, { recursive: true });
+        console.log("copied data files")
+    } catch (err) {
+        console.log("Error copying data files:")
+        console.error(err)
+    }
+    
+    try {
+        fs.cpSync(path.join(__dirname, './scanner/'), scannerDir, { recursive: true });
+        console.log("copied scanner files")
+    } catch (err) {
+        console.error(err)
+    }
     // The python script and its copying logic have been removed.
     // The static/ directory in user's dataDir is no longer created by this logic.
 }
@@ -32,6 +32,7 @@ const settingsPath = path.join(dataDir, './settings.json');
 const logsPath = path.join(dataDir, './logs.json');
 const quarantine = path.join(dataDir, './quarantine.json');
 const cron = require('node-cron');
+
 
 let win;
 
@@ -206,7 +207,6 @@ function startWatcher() {
         console.log("Watcher started!");
     }
 }
-
 
 var settings = require(path.join(dataDir, './settings.json'));
 
@@ -687,6 +687,16 @@ async function updateMalwareDefinitions() {
 }
 
 app.whenReady().then(() => {
+    
+    try {
+        // Settings are already loaded and potentially modified above for lastUpdated
+        settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
+        global.settings = settings; // Ensure global settings is also up-to-date
+        console.log("Settings Loaded:", settings);
+    } catch (err) {
+        // This catch might not be necessary if settings are guaranteed by the require and initialization above
+        console.error("Error re-loading/re-parsing settings:", err);
+    }
     ipcMain.handle("getSettings", getSettings)
     ipcMain.handle("getStats", getStats)
     ipcMain.handle("getThreats", getThreats)
@@ -707,15 +717,6 @@ app.whenReady().then(() => {
     // Updated to use the new function
     ipcMain.handle("updateDefinitions", updateMalwareDefinitions);
 
-    try {
-        // Settings are already loaded and potentially modified above for lastUpdated
-        settings = JSON.parse(fs.readFileSync(settingsPath, 'utf-8'));
-        global.settings = settings; // Ensure global settings is also up-to-date
-        console.log("Settings Loaded:", settings);
-    } catch (err) {
-        // This catch might not be necessary if settings are guaranteed by the require and initialization above
-        console.error("Error re-loading/re-parsing settings:", err);
-    }
 
     tray = new Tray(icon)
     var contextMenu = Menu.buildFromTemplate([
